@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package proxy;
+
+service ProxyService {
+  rpc ProxyOperation(ProxyOperationRequest) returns (Empty);
+}
+
+message ProxyOperationRequest {
+  string path = 1;
+  string host = 2;
+  int32 port = 3;
+  bool strip_path = 4;
+}
+
+message Empty { }
