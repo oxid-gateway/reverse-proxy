@@ -28,6 +28,7 @@ pub mod server {
                 body.path.clone(),
                 crate::TargetUpstream {
                     host: body.host.clone(),
+                    service_path: body.service_path.clone(),
                     port: body.port,
                     strip_path: body.strip_path,
                     path: body.path.clone(),

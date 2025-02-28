@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use esaxx_rs;
+
 use pingora::prelude::*;
 
 use async_trait::async_trait;
@@ -83,10 +85,17 @@ impl ProxyHttp for MyProxy {
             .insert_header("Host", tu.host.clone())
             .unwrap();
 
+        let mut new_path = upstream_request.uri.to_string();
+
         if tu.strip_path {
-            let new_path = upstream_request.uri.to_string().replace(&tu.path, "");
-            upstream_request.set_uri(Uri::builder().path_and_query(new_path).build().unwrap());
+            new_path = new_path.replace(&tu.path, "");
         }
+
+        if tu.service_path.is_some() {
+            new_path = format!("{}{}", tu.service_path.as_ref().unwrap(), new_path);
+        }
+
+        upstream_request.set_uri(Uri::builder().path_and_query(&new_path).build().unwrap());
 
         Ok(())
     }

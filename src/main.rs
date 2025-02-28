@@ -18,6 +18,7 @@ pub mod proxy_proto {
 
 #[derive(Clone, Debug)]
 pub struct TargetUpstream {
+    service_path: Option<String>,
     strip_path: bool,
     path: String,
     host: String,

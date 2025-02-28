@@ -11,6 +11,7 @@ message ProxyOperationRequest {
   string host = 2;
   int32 port = 3;
   bool strip_path = 4;
+  optional string service_path = 5;
 }
 
 message Empty { }
