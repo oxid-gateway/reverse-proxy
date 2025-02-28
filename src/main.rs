@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     sync::{Arc, RwLock},
     thread,
 };
@@ -26,9 +25,9 @@ pub struct TargetUpstream {
 }
 
 fn main() {
-    let map = Arc::new(RwLock::new(HashMap::new()));
+    let router = Arc::new(RwLock::new(matchit::Router::new()));
 
-    let grpc_map = map.clone();
+    let grpc_map = router.clone();
     thread::spawn(move || {
         let rt = Runtime::new().unwrap();
 
@@ -39,5 +38,5 @@ fn main() {
         rt.block_on(handle)
     });
 
-    proxy::start_proxy(map);
+    proxy::start_proxy(router);
 }

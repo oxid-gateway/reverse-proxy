@@ -4,14 +4,11 @@ pub mod server {
 
     use tonic::{Request, Response, Status};
 
-    use std::{
-        collections::HashMap,
-        sync::{Arc, RwLock},
-    };
+    use std::sync::{Arc, RwLock};
 
     #[derive(Debug, Default)]
     pub struct MyGreeter {
-        map: Arc<RwLock<HashMap<String, super::super::TargetUpstream>>>,
+        map: Arc<RwLock<matchit::Router<super::super::TargetUpstream>>>,
     }
 
     #[tonic::async_trait]
@@ -21,21 +18,39 @@ pub mod server {
             request: Request<ProxyOperationRequest>,
         ) -> Result<Response<Empty>, Status> {
             let body = request.get_ref();
+            let mut router = self.map.write().unwrap();
+            let match_path = format!("{}{{*p}}", body.path.clone());
 
-            let mut lock = self.map.write().unwrap();
+            if body.path.contains("{*p}") {
+                return Err(Status::invalid_argument("Path cannot contain {*p}"))
+            }
 
-            lock.insert(
-                body.path.clone(),
-                crate::TargetUpstream {
-                    host: body.host.clone(),
-                    service_path: body.service_path.clone(),
-                    port: body.port,
-                    strip_path: body.strip_path,
-                    path: body.path.clone(),
+            if !body.path.starts_with("/") {
+                return Err(Status::invalid_argument("Path needs to start with /"))
+            }
+
+            let tu = crate::TargetUpstream {
+                host: body.host.clone(),
+                service_path: body.service_path.clone(),
+                port: body.port,
+                strip_path: body.strip_path,
+                path: body.path.clone(),
+            };
+
+            match router.insert(match_path, tu.clone()) {
+                Err(err) => match err {
+                    matchit::InsertError::Conflict { with } => {
+                        router.remove(with);
+                        let _ = router.insert(body.path.clone(), tu);
+                    }
+                    _ => {
+                        println!("Invalid route tried to be inserted {:?}", err);
+                    }
                 },
-            );
+                Ok(_) => {}
+            };
 
-            drop(lock);
+            drop(router);
 
             let reply = Empty {};
 
@@ -44,7 +59,7 @@ pub mod server {
     }
 
     pub async fn start_server(
-        map: Arc<RwLock<HashMap<String, super::super::TargetUpstream>>>,
+        map: Arc<RwLock<matchit::Router<super::super::TargetUpstream>>>,
     ) -> () {
         let reflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(crate::proxy_proto::FILE_DESCRIPTOR_SET)

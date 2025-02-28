@@ -1,10 +1,7 @@
 use std::{
-    collections::HashMap,
     net::ToSocketAddrs,
     sync::{Arc, RwLock},
 };
-
-use esaxx_rs;
 
 use pingora::prelude::*;
 
@@ -17,7 +14,7 @@ pub struct RequestContext {
 }
 
 pub struct MyProxy {
-    map: Arc<RwLock<HashMap<String, crate::TargetUpstream>>>,
+    map: Arc<RwLock<matchit::Router<crate::TargetUpstream>>>,
 }
 
 #[async_trait]
@@ -33,12 +30,13 @@ impl ProxyHttp for MyProxy {
         let path = String::from_utf8_lossy(&path).to_string();
 
         let read_lock = self.map.read().unwrap();
-        match read_lock.get(&path) {
-            Some(tu) => {
-                _ctx.tu = Some(tu.clone());
+
+        match read_lock.at(&path) {
+            Ok(tu) => {
+                _ctx.tu = Some(tu.value.clone());
                 return Ok(false);
             }
-            None => {
+            Err(_) => {
                 return Err(pingora::Error::explain(
                     HTTPStatus(404),
                     "Route does not exist",
@@ -101,7 +99,7 @@ impl ProxyHttp for MyProxy {
     }
 }
 
-pub fn start_proxy(map: Arc<RwLock<HashMap<String, super::TargetUpstream>>>) {
+pub fn start_proxy(map: Arc<RwLock<matchit::Router<super::TargetUpstream>>>) {
     let mut my_server = Server::new(None).unwrap();
     my_server.bootstrap();
 
