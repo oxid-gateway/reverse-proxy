@@ -21,7 +21,7 @@ pub mod server {
             let mut router = self.map.write().unwrap();
             let match_path = format!("{}{{*p}}", body.path.clone());
 
-            if body.path.contains("{*p}") {
+            if body.path.contains("{*}") {
                 return Err(Status::invalid_argument("Path cannot contain {*p}"))
             }
 
@@ -37,17 +37,32 @@ pub mod server {
                 path: body.path.clone(),
             };
 
-            match router.insert(match_path, tu.clone()) {
+            match router.insert(&match_path, tu.clone()) {
                 Err(err) => match err {
                     matchit::InsertError::Conflict { with } => {
                         router.remove(with);
-                        let _ = router.insert(body.path.clone(), tu);
+                        let _ = router.insert(match_path, tu.clone());
                     }
                     _ => {
                         println!("Invalid route tried to be inserted {:?}", err);
                     }
                 },
-                Ok(_) => {}
+                Ok(_) => {
+                }
+            };
+
+            match router.insert(&body.path, tu.clone()) {
+                Err(err) => match err {
+                    matchit::InsertError::Conflict { with } => {
+                        router.remove(with);
+                        let _ = router.insert(&body.path, tu);
+                    }
+                    _ => {
+                        println!("Invalid route tried to be inserted {:?}", err);
+                    }
+                },
+                Ok(_) => {
+                }
             };
 
             drop(router);
