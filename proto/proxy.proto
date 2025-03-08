@@ -4,14 +4,21 @@ package proxy;
 
 service ProxyService {
   rpc ProxyOperation(ProxyOperationRequest) returns (Empty);
+  rpc DebugProxy(stream DebugRequest) returns (stream Empty);
+}
+
+message DebugRequest {
+    string id = 1;
 }
 
 message ProxyOperationRequest {
-  string path = 1;
-  string host = 2;
-  int32 port = 3;
-  bool strip_path = 4;
-  optional string service_path = 5;
+    string path = 1;
+    string host = 2;
+    int32 port = 3;
+    bool strip_path = 4;
+    optional string service_path = 5;
+    bool breakpoint = 6;
+    string id = 7;
 }
 
 message Empty { }
