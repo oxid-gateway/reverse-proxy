@@ -8,8 +8,11 @@ use tokio::sync::RwLock;
 
 use tokio::runtime::Runtime;
 
+use debug;
+
 mod grpc;
 mod proxy;
+mod debug;
 
 pub mod proxy_proto {
     tonic::include_proto!("proxy");
