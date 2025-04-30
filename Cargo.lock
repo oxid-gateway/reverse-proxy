@@ -1090,6 +1090,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
 
 [[package]]
+name = "oxid-gateway-reverse-proxy"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "flume",
+ "futures",
+ "matchit 0.8.6",
+ "pingora",
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+ "tonic-reflection",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1906,23 +1923,6 @@ name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
-
-[[package]]
-name = "tcc-idea"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "flume",
- "futures",
- "matchit 0.8.6",
- "pingora",
- "prost",
- "tokio",
- "tokio-stream",
- "tonic",
- "tonic-build",
- "tonic-reflection",
-]
 
 [[package]]
 name = "tempfile"

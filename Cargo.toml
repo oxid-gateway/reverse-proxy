@@ -1,6 +1,6 @@
 [package]
-name = "tcc-idea"
-version = "0.1.0"
+name = "oxid-gateway-reverse-proxy"
+version = "0.0.1"
 edition = "2021"
 
 [dependencies]
