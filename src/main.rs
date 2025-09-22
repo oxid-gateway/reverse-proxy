@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 
 use tokio::runtime::Runtime;
 
-mod grpc;
+mod admin;
 mod proxy;
 
 pub mod proxy_proto {
@@ -38,7 +38,7 @@ fn main() {
         let rt = Runtime::new().unwrap();
 
         let handle = rt.spawn(async {
-            grpc::server::start_server(grpc_map, grpc_debug_map).await;
+            admin::server::start_server(grpc_map, grpc_debug_map).await;
         });
 
         rt.block_on(handle)
