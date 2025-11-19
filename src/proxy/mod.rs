@@ -60,6 +60,13 @@ impl ProxyHttp for MyProxy {
                 _ctx.breakpoint_receiver = Some(debug_item.breakpoint_receiver.clone());
                 _ctx.tu = Some(tu.value.clone());
 
+                if tu.value.private {
+                    let auth = _session.req_header().headers.get("Authorization");
+                    if auth.is_none() {
+                        return Err(pingora::Error::explain(HTTPStatus(401), "Missing API Key"));
+                    }
+                }
+
                 return Ok(false);
             }
             Err(_) => {

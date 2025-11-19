@@ -26,6 +26,7 @@ pub struct TargetUpstream {
     path: String,
     host: String,
     port: i32,
+    private: bool,
 }
 
 fn main() {

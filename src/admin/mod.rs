@@ -53,6 +53,7 @@ pub mod server {
                 port: body.port,
                 strip_path: body.strip_path,
                 path: body.path.clone(),
+                private: true,
             };
 
             let debug_item = RequestDebugChanels {
