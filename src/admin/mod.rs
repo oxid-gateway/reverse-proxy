@@ -100,8 +100,6 @@ pub mod server {
                                 if "skip" == curr_id.to_string() {
                                     let mut clear_id = id.write().await;
                                     *clear_id = "".to_string();
-                                    let mut clear_body = req.write().await;
-                                    *clear_body = None;
                                     break;
                                 }
 
@@ -125,10 +123,10 @@ pub mod server {
                     }
                 }
 
-                if sender.is_some() {
-                    let sender = sender.as_ref().unwrap();
-                    sender.send(uuid::Uuid::new_v4()).unwrap();
-                }
+                // if sender.is_some() {
+                //     let sender = sender.as_ref().unwrap();
+                //     sender.send(uuid::Uuid::new_v4()).unwrap();
+                // }
             });
 
             let output_stream = ReceiverStream::new(rx);
@@ -199,7 +197,7 @@ pub mod server {
                             if debug_map_r.get(&proxy.id.clone()).is_none() {
                                 drop(debug_map_r);
                                 let mut debug_map = debug_map.write().await;
-                                let (tx, rx) = flume::unbounded();
+                                let (tx, rx) = flume::bounded(0);
 
                                 let debug_item = RequestDebugChanels {
                                     breakpoint_receiver: rx,

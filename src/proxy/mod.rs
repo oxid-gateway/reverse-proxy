@@ -86,6 +86,7 @@ impl ProxyHttp for MyProxy {
                     drop(req);
 
                     for x in receiver.iter() {
+                        println!("NEXT 1");
                         debug_id = x.clone();
                         break;
                     }
@@ -244,9 +245,9 @@ impl ProxyHttp for MyProxy {
                 );
             };
 
-            response_headers.insert("Forwarded-By".to_string(), user_agent.clone().to_owned().to_str().unwrap().to_string());
-            response_headers.insert("Forwarded-Proto".to_string(), "http".to_string());
-            response_headers.insert("Host".to_string(), tu.host.clone());
+            response_headers.insert("forwarded-by".to_string(), user_agent.clone().to_owned().to_str().unwrap().to_string());
+            response_headers.insert("forwarded-proto".to_string(), "http".to_string());
+            response_headers.insert("host".to_string(), tu.host.clone());
 
             *req = Some(DebugMessage {
                 headers: response_headers,
@@ -267,6 +268,8 @@ impl ProxyHttp for MyProxy {
                 let id_clone = debug_item.id.clone();
                 let mut id = id_clone.write().await;
                 *id = "skip".to_string();
+                let mut clear_body = debug_item.req.write().await;
+                *clear_body = None;
 
                 drop(id);
                 break;
