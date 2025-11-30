@@ -193,11 +193,18 @@ impl ProxyHttp for MyProxy {
         upstream_request: &mut RequestHeader,
         _ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let user_agent = upstream_request.headers.get("User-Agent").unwrap();
-        let tu = _ctx.tu.as_ref().unwrap();
+        let mut debug_id: uuid::Uuid = _ctx.id.clone().read().await.clone();
+        let ur = upstream_request.clone();
+        let user_agent = ur.headers.get("User-Agent").unwrap();
+        let tu = _ctx.tu.clone().unwrap();
+        let map = self.debug_map.read().await;
+        let debug_item = map.get(&tu.id).unwrap();
+        let receiver = _ctx.breakpoint_receiver.clone().unwrap();
+        let path = _session.req_header().raw_path();
+        let path = String::from_utf8_lossy(&path).to_string();
 
         upstream_request
-            .insert_header("Forwarded-By", user_agent.to_owned())
+            .insert_header("Forwarded-By", user_agent.clone().to_owned())
             .unwrap();
 
         upstream_request
@@ -216,6 +223,54 @@ impl ProxyHttp for MyProxy {
 
         if tu.service_path.is_some() {
             new_path = format!("{}{}", tu.service_path.as_ref().unwrap(), new_path);
+        }
+
+        if receiver.sender_count() > 1 {
+            let req_clone = debug_item.req.clone();
+            let mut req = req_clone.write().await;
+            let body = _session.read_request_body().await.unwrap();
+            let mut string_body = "".to_string();
+            if body.is_some() {
+                string_body = String::from_utf8(body.unwrap().to_vec()).unwrap();
+            }
+
+            let headers = _session.req_header();
+            let mut response_headers = HashMap::new();
+
+            for (header_name, header_value) in headers.headers.iter() {
+                response_headers.insert(
+                    header_name.to_string(),
+                    header_value.to_str().unwrap_or("").to_string(),
+                );
+            };
+
+            response_headers.insert("Forwarded-By".to_string(), user_agent.clone().to_owned().to_str().unwrap().to_string());
+            response_headers.insert("Forwarded-Proto".to_string(), "http".to_string());
+            response_headers.insert("Host".to_string(), tu.host.clone());
+
+            *req = Some(DebugMessage {
+                headers: response_headers,
+                path: path.to_string(),
+                body: string_body,
+                method: headers.method.to_string(),
+                notes: "Headers updated to match upstream".to_string()
+            });
+
+            let id_clone = debug_item.id.clone();
+            let mut id = id_clone.write().await;
+            *id = debug_id.clone().to_string();
+
+            drop(req);
+            drop(id);
+
+            for _ in receiver.iter() {
+                let id_clone = debug_item.id.clone();
+                let mut id = id_clone.write().await;
+                *id = "skip".to_string();
+
+                drop(id);
+                break;
+            }
         }
 
         upstream_request.set_uri(Uri::builder().path_and_query(&new_path).build().unwrap());

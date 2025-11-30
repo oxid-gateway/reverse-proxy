@@ -143,17 +143,26 @@ pub mod server {
                             let req = debug_map_lock.get(&v.id).unwrap().req.clone();
                             let id = debug_map_lock.get(&v.id).unwrap().id.clone();
 
+                            let mut send_body = false;
+
                             loop {
                                 let curr_id = id.read().await.clone();
 
+                                if "skip" == curr_id.to_string() {
+                                    break;
+                                }
+
                                 if send_id.to_string() == curr_id.to_string() {
+                                    send_body = true;
                                     break;
                                 }
 
                                 sleep(Duration::from_millis(100)).await;
                             }
 
-                            tx.send(Ok(req.read().await.clone().unwrap())).await.expect("working rx");
+                            if send_body {
+                                tx.send(Ok(req.read().await.clone().unwrap())).await.expect("working rx");
+                            }
                         }
                         Err(_) => {
                             break;
