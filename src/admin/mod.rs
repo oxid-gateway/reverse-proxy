@@ -98,6 +98,10 @@ pub mod server {
                                 let curr_id = id.read().await.clone();
 
                                 if "skip" == curr_id.to_string() {
+                                    let mut clear_id = id.write().await;
+                                    *clear_id = "".to_string();
+                                    let mut clear_body = req.write().await;
+                                    *clear_body = None;
                                     break;
                                 }
 
