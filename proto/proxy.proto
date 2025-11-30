@@ -4,7 +4,7 @@ package proxy;
 
 service ProxyService {
   rpc ProxyOperation(ProxyOperationRequest) returns (Empty);
-  rpc DebugProxy(stream DebugRequest) returns (stream Empty);
+  rpc DebugProxy(stream DebugRequest) returns (stream DebugMessage);
 }
 
 message DebugRequest {
@@ -22,3 +22,10 @@ message ProxyOperationRequest {
 }
 
 message Empty { }
+
+message DebugMessage { 
+    map<string, string> headers = 1;
+    string method = 2;
+    string body = 3;
+    string path = 4;
+}

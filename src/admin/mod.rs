@@ -1,7 +1,7 @@
 pub mod server {
     use flume::Sender;
     use futures::Stream;
-    use tokio::sync::mpsc;
+    use tokio::{sync::mpsc, time::sleep};
     use tokio_stream::{wrappers::ReceiverStream, StreamExt};
     use tonic::{Request, Response, Status, Streaming};
 
@@ -9,11 +9,11 @@ pub mod server {
         proxy::RequestDebugChanels,
         proxy_proto::{
             proxy_service_server::{ProxyService, ProxyServiceServer},
-            DebugRequest, Empty, ProxyOperationRequest,
+            DebugRequest, Empty, ProxyOperationRequest, DebugMessage
         },
     };
 
-    use std::{collections::HashMap, pin::Pin, sync::Arc};
+    use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 
     use tokio::sync::RwLock;
 
@@ -25,7 +25,7 @@ pub mod server {
 
     #[tonic::async_trait]
     impl ProxyService for MyGreeter {
-        type DebugProxyStream = Pin<Box<dyn Stream<Item = Result<Empty, tonic::Status>> + Send>>;
+        type DebugProxyStream = Pin<Box<dyn Stream<Item = Result<DebugMessage, tonic::Status>> + Send>>;
 
         async fn proxy_operation(
             &self,
@@ -59,6 +59,8 @@ pub mod server {
             let debug_item = RequestDebugChanels {
                 breakpoint_receiver: rx,
                 breakpoint_sender: tx,
+                id: Arc::new(RwLock::new("".to_string())),
+                req: Arc::new(RwLock::new(None)),
             };
 
             match router.insert(&match_path, tu.clone()) {
@@ -104,25 +106,54 @@ pub mod server {
             let mut in_stream = request.into_inner();
             let (tx, rx) = mpsc::channel(10);
 
-            let mut sender: Option<Sender<bool>> = None;
+            let mut sender: Option<Sender<uuid::Uuid>> = None;
 
             tokio::spawn(async move {
                 let debug_map_lock = debug_map.read().await;
                 while let Some(result) = in_stream.next().await {
                     match result {
                         Ok(v) => {
+                            let send_id = uuid::Uuid::new_v4();
                             if sender.is_none() {
                                 sender = Some(
                                     debug_map_lock.get(&v.id).unwrap().breakpoint_sender.clone(),
                                 );
+                                
+                                let start_body: DebugMessage;
 
+                                loop {
+                                    let req = debug_map_lock.get(&v.id).unwrap().req.clone();
+                                    let ref_body = req.read().await.clone();
+
+                                    if ref_body.is_some() {
+                                        start_body = ref_body.unwrap();
+                                        break;
+                                    }
+
+                                    sleep(Duration::from_millis(100)).await;
+                                }
+
+                                tx.send(Ok(start_body)).await.expect("working rx");
                                 continue;
                             } else {
                                 let sender = sender.as_ref().unwrap();
-                                sender.send(true).unwrap();
+                                sender.send(send_id).unwrap();
                             }
 
-                            tx.send(Ok(Empty {})).await.expect("working rx");
+                            let req = debug_map_lock.get(&v.id).unwrap().req.clone();
+                            let id = debug_map_lock.get(&v.id).unwrap().id.clone();
+
+                            loop {
+                                let curr_id = id.read().await.clone();
+
+                                if send_id.to_string() == curr_id.to_string() {
+                                    break;
+                                }
+
+                                sleep(Duration::from_millis(100)).await;
+                            }
+
+                            tx.send(Ok(req.read().await.clone().unwrap())).await.expect("working rx");
                         }
                         Err(_) => {
                             break;
@@ -132,7 +163,7 @@ pub mod server {
 
                 if sender.is_some() {
                     let sender = sender.as_ref().unwrap();
-                    sender.send(true).unwrap();
+                    sender.send(uuid::Uuid::new_v4()).unwrap();
                 }
             });
 
@@ -140,7 +171,7 @@ pub mod server {
 
             Ok(Response::new(Box::pin(output_stream)
                 as Pin<
-                    Box<dyn Stream<Item = Result<Empty, Status>> + Send>,
+                    Box<dyn Stream<Item = Result<DebugMessage, Status>> + Send>,
                 >))
         }
     }

@@ -9,16 +9,20 @@ use pingora::prelude::*;
 use async_trait::async_trait;
 use tonic::transport::Uri;
 
+use crate::proxy_proto::DebugMessage;
+
 #[derive(Clone)]
 pub struct RequestContext {
     tu: Option<crate::TargetUpstream>,
-    breakpoint_receiver: Option<Receiver<bool>>,
+    breakpoint_receiver: Option<Receiver<uuid::Uuid>>,
 }
 
 #[derive(Debug)]
 pub struct RequestDebugChanels {
-    pub breakpoint_receiver: Receiver<bool>,
-    pub breakpoint_sender: Sender<bool>,
+    pub breakpoint_receiver: Receiver<uuid::Uuid>,
+    pub breakpoint_sender: Sender<uuid::Uuid>,
+    pub id: Arc<RwLock<String>>,
+    pub req: Arc<RwLock<Option<DebugMessage>>>,
 }
 
 pub struct MyProxy {
@@ -50,10 +54,65 @@ impl ProxyHttp for MyProxy {
                 let receiver = debug_item.breakpoint_receiver.clone();
 
                 if receiver.sender_count() > 1 {
+                    let req_clone = debug_item.req.clone();
+                    let mut req = req_clone.write().await;
+                    let body = _session.read_request_body().await.unwrap();
+                    let mut string_body = "".to_string();
+                    if body.is_some() {
+                        string_body = String::from_utf8(body.unwrap().to_vec()).unwrap();
+                    }
+
+                    let headers = _session.req_header();
+                    let mut response_headers = HashMap::new();
+
+                    for (header_name, header_value) in headers.headers.iter() {
+                        response_headers.insert(
+                            header_name.to_string(),
+                            header_value.to_str().unwrap_or("").to_string(),
+                        );
+                    }
+
+                    *req = Some(DebugMessage {
+                        headers: response_headers,
+                        path: path.clone(),
+                        body: string_body,
+                        method: headers.method.to_string(),
+                    });
+
+                    drop(req);
+
                     for x in receiver.iter() {
-                        if x {
-                            break;
+                        let req_clone = debug_item.req.clone();
+                        let mut req = req_clone.write().await;
+                        let body = _session.read_request_body().await.unwrap();
+                        let mut string_body = "".to_string();
+                        if body.is_some() {
+                            string_body = String::from_utf8(body.unwrap().to_vec()).unwrap();
                         }
+
+                        let headers = _session.req_header();
+                        let mut response_headers = HashMap::new();
+
+                        for (header_name, header_value) in headers.headers.iter() {
+                            response_headers.insert(
+                                header_name.to_string(),
+                                header_value.to_str().unwrap_or("").to_string(),
+                            );
+                        }
+
+                        *req = Some(DebugMessage {
+                            headers: response_headers,
+                            path: path.clone(),
+                            body: string_body,
+                            method: headers.method.to_string(),
+                        });
+                        let id_clone = debug_item.id.clone();
+                        let mut id = id_clone.write().await;
+                        *id = x.to_string();
+
+                        drop(req);
+                        drop(id);
+                        break;
                     }
                 }
 
