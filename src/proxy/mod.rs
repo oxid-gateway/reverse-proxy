@@ -15,6 +15,7 @@ use crate::proxy_proto::DebugMessage;
 pub struct RequestContext {
     tu: Option<crate::TargetUpstream>,
     breakpoint_receiver: Option<Receiver<uuid::Uuid>>,
+    id: Arc<RwLock<uuid::Uuid>>,
 }
 
 #[derive(Debug)]
@@ -38,6 +39,7 @@ impl ProxyHttp for MyProxy {
         return RequestContext {
             tu: None,
             breakpoint_receiver: None,
+            id: Arc::new(RwLock::new(uuid::Uuid::new_v4()))
         };
     }
 
@@ -49,6 +51,7 @@ impl ProxyHttp for MyProxy {
 
         match read_lock.at(&path) {
             Ok(tu) => {
+                let mut debug_id: uuid::Uuid = uuid::Uuid::new_v4();
                 let map = self.debug_map.read().await;
                 let debug_item = map.get(&tu.value.id).unwrap();
                 let receiver = debug_item.breakpoint_receiver.clone();
@@ -77,54 +80,84 @@ impl ProxyHttp for MyProxy {
                         path: path.clone(),
                         body: string_body,
                         method: headers.method.to_string(),
+                        notes: "New request arrived in gateway".to_string()
                     });
 
                     drop(req);
 
                     for x in receiver.iter() {
-                        let req_clone = debug_item.req.clone();
-                        let mut req = req_clone.write().await;
-                        let body = _session.read_request_body().await.unwrap();
-                        let mut string_body = "".to_string();
-                        if body.is_some() {
-                            string_body = String::from_utf8(body.unwrap().to_vec()).unwrap();
-                        }
-
-                        let headers = _session.req_header();
-                        let mut response_headers = HashMap::new();
-
-                        for (header_name, header_value) in headers.headers.iter() {
-                            response_headers.insert(
-                                header_name.to_string(),
-                                header_value.to_str().unwrap_or("").to_string(),
-                            );
-                        }
-
-                        *req = Some(DebugMessage {
-                            headers: response_headers,
-                            path: path.clone(),
-                            body: string_body,
-                            method: headers.method.to_string(),
-                        });
-                        let id_clone = debug_item.id.clone();
-                        let mut id = id_clone.write().await;
-                        *id = x.to_string();
-
-                        drop(req);
-                        drop(id);
+                        debug_id = x.clone();
                         break;
                     }
+                }
+
+                let mut is_auth_error = false;
+
+                if tu.value.private {
+                    let auth = _session.req_header().headers.get("Authorization");
+                    if auth.is_none() {
+                        is_auth_error = true;
+                    }
+                }
+
+                if receiver.sender_count() > 1 {
+                    let req_clone = debug_item.req.clone();
+                    let mut req = req_clone.write().await;
+                    let body = _session.read_request_body().await.unwrap();
+                    let mut string_body = "".to_string();
+                    if body.is_some() {
+                        string_body = String::from_utf8(body.unwrap().to_vec()).unwrap();
+                    }
+
+                    let headers = _session.req_header();
+                    let mut response_headers = HashMap::new();
+
+                    for (header_name, header_value) in headers.headers.iter() {
+                        response_headers.insert(
+                            header_name.to_string(),
+                            header_value.to_str().unwrap_or("").to_string(),
+                        );
+                    }
+
+                    let auth_message: String;
+
+                    if is_auth_error {
+                        auth_message = String::from("Authentication Headers from client is invalid!");
+                    } else {
+                        auth_message = String::from("Client authenticated successfully");
+                    }
+
+                    *req = Some(DebugMessage {
+                        headers: response_headers,
+                        path: path.clone(),
+                        body: string_body,
+                        method: headers.method.to_string(),
+                        notes: auth_message
+                    });
+
+                    let id_clone = debug_item.id.clone();
+                    let mut id = id_clone.write().await;
+                    *id = debug_id.clone().to_string();
+
+                    drop(req);
+                    drop(id);
+
+                    for x in receiver.iter() {
+                        debug_id = x.clone();
+                        break;
+                    }
+                }
+
+                if is_auth_error{
+                    return Err(pingora::Error::explain(HTTPStatus(401), "Missing API Key"));
                 }
 
                 _ctx.breakpoint_receiver = Some(debug_item.breakpoint_receiver.clone());
                 _ctx.tu = Some(tu.value.clone());
 
-                if tu.value.private {
-                    let auth = _session.req_header().headers.get("Authorization");
-                    if auth.is_none() {
-                        return Err(pingora::Error::explain(HTTPStatus(401), "Missing API Key"));
-                    }
-                }
+                let id_clone = _ctx.id.clone();
+                let mut id = id_clone.write().await;
+                *id = debug_id;
 
                 return Ok(false);
             }

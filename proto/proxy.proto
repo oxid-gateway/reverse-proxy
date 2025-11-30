@@ -28,4 +28,5 @@ message DebugMessage {
     string method = 2;
     string body = 3;
     string path = 4;
+    string notes = 5;
 }
