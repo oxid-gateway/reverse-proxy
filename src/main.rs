@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    thread,
-};
+use std::{collections::HashMap, sync::Arc, thread};
 
 use tokio::sync::RwLock;
 
