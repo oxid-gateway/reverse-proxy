@@ -86,7 +86,6 @@ impl ProxyHttp for MyProxy {
                     drop(req);
 
                     for x in receiver.iter() {
-                        println!("NEXT 1");
                         debug_id = x.clone();
                         break;
                     }

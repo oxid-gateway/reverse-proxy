@@ -55,11 +55,11 @@ pub mod server {
             let mut in_stream = request.into_inner();
             let (tx, rx) = mpsc::channel(10);
 
-            let mut sender: Option<Sender<uuid::Uuid>> = None;
-
             tokio::spawn(async move {
+                let mut sender: Option<Sender<uuid::Uuid>> = None;
+
                 let debug_map_lock = debug_map.read().await;
-                while let Some(result) = in_stream.next().await {
+                'listen_while: while let Some(result) = in_stream.next().await {
                     match result {
                         Ok(v) => {
                             let send_id = uuid::Uuid::new_v4();
@@ -71,6 +71,10 @@ pub mod server {
                                 let start_body: DebugMessage;
 
                                 loop {
+                                    if tx.is_closed() {
+                                        break 'listen_while;
+                                    }
+
                                     let req = debug_map_lock.get(&v.id).unwrap().req.clone();
                                     let ref_body = req.read().await.clone();
 
@@ -95,6 +99,10 @@ pub mod server {
                             let mut send_body = false;
 
                             loop {
+                                if tx.is_closed() {
+                                    break 'listen_while;
+                                }
+
                                 let curr_id = id.read().await.clone();
 
                                 if "skip" == curr_id.to_string() {
@@ -118,15 +126,11 @@ pub mod server {
                             }
                         }
                         Err(_) => {
+                            println!("ERRR");
                             break;
                         }
                     }
                 }
-
-                // if sender.is_some() {
-                //     let sender = sender.as_ref().unwrap();
-                //     sender.send(uuid::Uuid::new_v4()).unwrap();
-                // }
             });
 
             let output_stream = ReceiverStream::new(rx);
